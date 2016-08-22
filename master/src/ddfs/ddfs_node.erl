@@ -25,6 +25,7 @@
 
 -spec start_link(term(), pid()) -> no_return().
 start_link(Config, NodeMon) ->
+    %% 自己处理退出
     process_flag(trap_exit, true),
     case gen_server:start_link(
                  {local, ?MODULE}, ?MODULE, Config, [{timeout, ?NODE_STARTUP}]) of
@@ -322,7 +323,7 @@ do_put_tag_commit(Tag, TagVol, #state{nodename = NodeName,
             {E, S}
     end.
 
-
+%% 确保相应的文件夹创建成功
 -spec try_makedir(path()) -> ok | error.
 try_makedir(Dir) ->
     case prim_file:make_dir(Dir) of
@@ -346,11 +347,12 @@ init_vols(Root, VolNames) ->
              ok = try_makedir(filename:join([Root, VolName, "tag"]))
          end || VolName <- VolNames],
     {ok, [{{0, 0}, VolName} || VolName <- lists:sort(VolNames)]}.
-
+%% 得到卷的根目录
 -spec find_vols(path()) -> eof | ok | {ok, [volume()]} | {error, _}.
 find_vols(Root) ->
     case prim_file:list_dir(Root) of
         {ok, Files} ->
+            %% 得到所有vol开头的文件夹
             case [F || "vol" ++ _ = F <- Files] of
                 [] ->
                     VolName = "vol0",

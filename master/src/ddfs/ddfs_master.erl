@@ -163,8 +163,11 @@ init(_Args) ->
     _ = [disco_profile:new_histogram(Name)
         || Name <- [get_tags, do_get_tags_all, do_get_tags_filter,
             do_get_tags_safe, do_get_tags_gc]],
+    %% 启动磁盘空间监控        
     spawn_link(fun() -> monitor_diskspace() end),
+    %% 启动gc
     spawn_link(ddfs_gc, start_gc, [disco:get_setting("DDFS_DATA")]),
+    %% 启动tag刷新进程
     Refresher = spawn_link(fun() -> refresh_tag_cache_proc() end),
     put(put_port, disco:get_setting("DDFS_PUT_PORT")),
     {ok, #state{cache_refresher = Refresher}}.
@@ -262,7 +265,7 @@ handle_cast({safe_gc_blacklist, SafeBlacklist}, #state{gc_blacklist = BL} = S) -
 
 handle_cast({update_gc_stats, Stats}, S) ->
     {noreply, S#state{gc_stats = {Stats, now()}}};
-
+%% 直接更新tag
 handle_cast({update_tag_cache, TagCache}, S) ->
     {noreply, S#state{tag_cache = {true, TagCache}}};
 
@@ -296,9 +299,13 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 -spec do_get_readable_nodes([node_info()], [node()]) ->
                                    {ok, [node()], non_neg_integer()}.
 do_get_readable_nodes(Nodes, ReadBlacklist) ->
+    %% 得到所有的节点
     NodeSet = gb_sets:from_ordset(lists:sort([Node || {Node, _} <- Nodes])),
+    %% 得到读取节点黑名单
     BlackSet = gb_sets:from_ordset(ReadBlacklist),
+    %% 得到可读取的节点
     ReadableNodeSet = gb_sets:subtract(NodeSet, BlackSet),
+    %% 返回所有可读节点和黑名单数量
     {ok, gb_sets:to_list(ReadableNodeSet), gb_sets:size(BlackSet)}.
 
 do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
@@ -345,6 +352,7 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
 do_new_blob(_Obj, K, _Include, _Exclude, _BlackList, Nodes) when K > length(Nodes) ->
     too_many_replicas;
 do_new_blob(Obj, K, Include, Exclude, BlackList, Nodes) ->
+    %% 选出可写的节点
     {ok, WriteNodes} = do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList),
     Urls = [["http://", disco:host(N), ":", get(put_port), "/ddfs/", Obj]
             || N <- WriteNodes],
@@ -542,11 +550,15 @@ refresh_tag_cache_proc() ->
 
 -spec refresh_tag_cache([node()], non_neg_integer()) -> ok.
 refresh_tag_cache(Nodes, BLSize) ->
+    %% 得到每个tag最少复制的次数
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
     {Replies, Failed} =
         gen_server:multi_call(Nodes, ddfs_node, get_tags, ?NODE_TIMEOUT),
+    %% 黑名单＋失败节点的个数 < tag最小复制数
     if Nodes =/= [], length(Failed) + BLSize < TagMinK ->
+            %% 取出所有的tag
             {_OkNodes, Tags} = lists:unzip(Replies),
+            %% 更新tag缓存
             update_tag_cache(gb_sets:from_list(lists:flatten(Tags)));
        true -> ok
     end.
