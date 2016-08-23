@@ -317,9 +317,11 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
     %    are not excluded or blacklisted.
     % 2. if K nodes cannot be found this way, choose the K emptiest
     %    nodes which are not excluded or blacklisted.
+    %% 找出所有的空间大于最小空间的节点
     Primary = ([N || {N, {Free, _Total}} <- Nodes, Free > ?MIN_FREE_SPACE / 1024]
                -- (Exclude ++ BlackList)),
     if length(Primary) >= K ->
+            %% 选择随机节点
             {ok, Include ++ disco_util:choose_random(Primary -- Include , K - length(Include))};
        true ->
             Preferred = [N || {N, _} <- lists:reverse(lists:keysort(2, Nodes))],
