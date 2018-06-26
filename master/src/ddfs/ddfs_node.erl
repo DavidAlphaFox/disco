@@ -25,7 +25,6 @@
 
 -spec start_link(term(), pid()) -> no_return().
 start_link(Config, NodeMon) ->
-    %% 自己处理退出
     process_flag(trap_exit, true),
     case gen_server:start_link(
                  {local, ?MODULE}, ?MODULE, Config, [{timeout, ?NODE_STARTUP}]) of

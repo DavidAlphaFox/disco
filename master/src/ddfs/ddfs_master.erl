@@ -45,7 +45,7 @@
                 read_blacklist    = []                :: [node()],
                 gc_blacklist      = []                :: [node()],
                 safe_gc_blacklist = gb_sets:empty()   :: disco_gbset(tagname()),
-                gc_stats          = none              :: none | {gc_stats(), erlang:timestamp()}}).
+                gc_stats          = none              :: none | {gc_stats(), disco_util:timestamp()}}).
 -type state() :: #state{}.
 -type replyto() :: {pid(), reference()}.
 
@@ -90,7 +90,7 @@ gc_blacklist() ->
 gc_blacklist(Nodes) ->
     gen_server:cast(?MODULE, {gc_blacklist, Nodes}).
 
--spec gc_stats() -> {ok, none | {gc_stats(), erlang:timestamp()}} | {error, term()}.
+-spec gc_stats() -> {ok, none | {gc_stats(), disco_util:timestamp()}} | {error, term()}.
 gc_stats() ->
     gen_server:call(?MODULE, gc_stats).
 
@@ -163,11 +163,8 @@ init(_Args) ->
     _ = [disco_profile:new_histogram(Name)
         || Name <- [get_tags, do_get_tags_all, do_get_tags_filter,
             do_get_tags_safe, do_get_tags_gc]],
-    %% 启动磁盘空间监控        
     spawn_link(fun() -> monitor_diskspace() end),
-    %% 启动gc
     spawn_link(ddfs_gc, start_gc, [disco:get_setting("DDFS_DATA")]),
-    %% 启动tag刷新进程
     Refresher = spawn_link(fun() -> refresh_tag_cache_proc() end),
     put(put_port, disco:get_setting("DDFS_PUT_PORT")),
     {ok, #state{cache_refresher = Refresher}}.
@@ -184,7 +181,7 @@ init(_Args) ->
                  (gc_blacklist, from(), state()) ->
                          gs_reply({ok, [node()]});
                  (gc_stats, from(), state()) ->
-                         gs_reply({ok, gc_stats(), erlang:timestamp()});
+                         gs_reply({ok, gc_stats(), disco_util:timestamp()});
                  (choose_write_nodes_msg(), from(), state()) ->
                          gs_reply({ok, [node()]});
                  (new_blob_msg(), from(), state()) ->
@@ -264,8 +261,8 @@ handle_cast({safe_gc_blacklist, SafeBlacklist}, #state{gc_blacklist = BL} = S) -
     {noreply, S#state{safe_gc_blacklist = SBL}};
 
 handle_cast({update_gc_stats, Stats}, S) ->
-    {noreply, S#state{gc_stats = {Stats, now()}}};
-%% 直接更新tag
+    {noreply, S#state{gc_stats = {Stats, disco_util:timestamp()}}};
+
 handle_cast({update_tag_cache, TagCache}, S) ->
     {noreply, S#state{tag_cache = {true, TagCache}}};
 
@@ -321,7 +318,6 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
     Primary = ([N || {N, {Free, _Total}} <- Nodes, Free > ?MIN_FREE_SPACE / 1024]
                -- (Exclude ++ BlackList)),
     if length(Primary) >= K ->
-            %% 选择随机节点
             {ok, Include ++ disco_util:choose_random(Primary -- Include , K - length(Include))};
        true ->
             Preferred = [N || {N, _} <- lists:reverse(lists:keysort(2, Nodes))],
@@ -354,7 +350,6 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
 do_new_blob(_Obj, K, _Include, _Exclude, _BlackList, Nodes) when K > length(Nodes) ->
     too_many_replicas;
 do_new_blob(Obj, K, Include, Exclude, BlackList, Nodes) ->
-    %% 选出可写的节点
     {ok, WriteNodes} = do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList),
     Urls = [["http://", disco:host(N), ":", get(put_port), "/ddfs/", Obj]
             || N <- WriteNodes],
