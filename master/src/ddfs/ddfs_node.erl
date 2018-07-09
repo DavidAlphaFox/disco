@@ -91,7 +91,7 @@ init(Config) ->
 
     if
         PutEnabled ->
-            {ok, _PutPid} = ddfs_put:start(PutPort),
+            {ok, _PutPid} = ddfs_put:start(PutPort),%% 开启put服务器
             ok;
         true ->
             ok
@@ -229,21 +229,21 @@ do_put_blob(BlobName, {Pid, _Ref} = From,
             #state{putq = Q, nodename = NodeName,
                    root = Root, vols = Vols} = S) ->
     Reply = fun() ->
-                    {_Space, VolName} = choose_vol(Vols),
+                    {_Space, VolName} = choose_vol(Vols),%% 进行卷选择，总是选择空间剩余最大的那个
                     {ok, Local, Url} = ddfs_util:hashdir(list_to_binary(BlobName),
                                                          NodeName, "blob",
                                                          Root, VolName),
-                    case ddfs_util:ensure_dir(Local) of
+                    case ddfs_util:ensure_dir(Local) of %% 确保文件夹，然后返回写入信息
                         ok ->
                             gen_server:reply(From, {ok, Local, Url});
                         {error, E} ->
                             gen_server:reply(From, {error, Local, E})
                     end
             end,
-    case http_queue:add({Pid, Reply}, Q) of
+    case http_queue:add({Pid, Reply}, Q) of %% 进行操作排队，如果已经满了，则立刻回复已经满了
         full ->
             {reply, full, S};
-        {_, NewQ} ->
+        {_, NewQ} -> %% 否则进入排队状态，并监控请求者的进程
             erlang:monitor(process, Pid),
             {noreply, S#state{putq = NewQ}}
     end.
@@ -382,11 +382,11 @@ find_tags(Root, Vols) ->
 -spec parse_tag(nonempty_string(), volume_name(), tag_map()) -> tag_map().
 parse_tag("!" ++ _, _, Tags) -> Tags;
 parse_tag(Tag, VolName, Tags) ->
-    {TagName, Time} = ddfs_util:unpack_objname(Tag),
+    {TagName, Time} = ddfs_util:unpack_objname(Tag), %% 解压出所有的tag名字和创建时间
     case gb_trees:lookup(TagName, Tags) of
         none ->
             gb_trees:insert(TagName, {Time, VolName}, Tags);
-        {value, {OTime, _}} when OTime < Time ->
+        {value, {OTime, _}} when OTime < Time -> %% 总是用最新的时间更新tag
             gb_trees:enter(TagName, {Time, VolName}, Tags);
         _ ->
             Tags

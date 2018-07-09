@@ -24,10 +24,10 @@ loop("/ddfs/" ++ BlobName, Req) ->
     % Disable keep-alive
     erlang:put(mochiweb_request_force_close, true),
     case {Req:get(method),
-          valid_blob(catch ddfs_util:unpack_objname(BlobName))} of
+          valid_blob(catch ddfs_util:unpack_objname(BlobName))} of %% 验证是否是合法的blob名字
         {'PUT', true} ->
             try case ddfs_node:put_blob(BlobName) of
-                    {ok, Path, Url} ->
+                    {ok, Path, Url} -> %% 拿到位置信息了
                         receive_blob(Req, {Path, BlobName}, Url);
                     {error, Path, Error} ->
                         error_reply(Req, "Could not create path for blob",
@@ -58,13 +58,13 @@ loop(_, Req) ->
 valid_blob({'EXIT', _}) -> false;
 valid_blob({Name, _}) ->
     ddfs_util:is_valid_name(binary_to_list(Name)).
-
+%% 进行文件接收
 -spec receive_blob(module(), {path(), path()}, url()) -> _.
 receive_blob(Req, {Path, Fname}, Url) ->
     disco_profile:timed_run(
         fun() ->
             Dir = filename:join(Path, Fname),
-            case prim_file:read_file_info(Dir) of
+            case prim_file:read_file_info(Dir) of %% 确保文件不存在
                 {error, enoent} ->
                     Tstamp = ddfs_util:timestamp(),
                     Partial = lists:flatten(["!partial-", Tstamp, ".", Fname]),
@@ -83,7 +83,7 @@ receive_blob(Req, {Path, Fname}, Url) ->
 receive_blob(Req, IO, Dst, Url) ->
     error_logger:info_msg("PUT BLOB: ~p (~p bytes) on ~p",
                           [Req:get(path), Req:get_header_value("content-length"), node()]),
-    case receive_body(Req, IO) of
+    case receive_body(Req, IO) of %% 所有文件都接收完成了
         ok ->
             [_, Fname] = string:tokens(filename:basename(Dst), "."),
             Dir = filename:join(filename:dirname(Dst), Fname),
@@ -91,7 +91,7 @@ receive_blob(Req, IO, Dst, Url) ->
             % race condition if two clients are PUTting the same blob
             % concurrently and finish at the same time. In any case the
             % file should not be corrupted.
-            case ddfs_util:safe_rename(Dst, Dir) of
+            case ddfs_util:safe_rename(Dst, Dir) of %% 进行重命名
                 ok ->
                     Req:respond({201,
                         [{"content-type", "application/json"}],

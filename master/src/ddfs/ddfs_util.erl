@@ -203,7 +203,7 @@ concatenate_do(SrcIO, DstIO) ->
         eof   -> ok;
         Error -> Error
     end.
-
+%% 直接使用系统命令获取信息
 -spec diskspace(nonempty_string()) -> {error, invalid_output | invalid_path} |
                                       {ok, diskinfo()}.
 diskspace(Path) ->
