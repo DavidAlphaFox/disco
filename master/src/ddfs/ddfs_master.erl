@@ -361,7 +361,7 @@ do_new_blob(Obj, K, Include, Exclude, BlackList, Nodes) ->
 -spec get_tag_pid(tagname(), disco_gbtree(tagname(),pid()), {boolean(),
                   disco_gbset(tagname())}) ->
     {pid(), disco_gbtree(tagname(), pid())}.
-get_tag_pid(Tag, Tags, {Valid, Cache}) ->
+get_tag_pid(Tag, Tags, {Valid, Cache}) -> %% 使用红黑树保存Tag的进程ID
     case gb_trees:lookup(Tag, Tags) of
         none ->
             NotFound = case Valid of
