@@ -111,13 +111,13 @@ handle_cast({input, Inputs}, #state{runtime = Runtime} = S) ->
         _ ->
             update(S#state{runtime = Runtime1})
     end;
-
+%% 启动任务
 handle_cast(start, #state{task = Task, master = Master} = State) ->
     {#task_spec{jobname = JobName}, #task_run{}} = Task,
     Fun = fun() -> make_jobhome(JobName, Master) end,
     try case lock_server:lock(JobName, Fun, ?JOBHOME_TIMEOUT) of
             ok ->
-                gen_server:cast(self(), work),
+                gen_server:cast(self(), work),  %% 创建任务的主目录成功，通知自己开始工作
                 {noreply, State};
             {error, Reason} ->
                 Msg = io_lib:format("Jobpack extraction failed: ~p", [Reason]),
@@ -130,8 +130,8 @@ handle_cast(start, #state{task = Task, master = Master} = State) ->
 handle_cast(work, #state{task = T, port = none} = State) ->
     {#task_spec{jobname = JobName, worker = W, jobenvs = JE}, #task_run{}} = T,
     JobHome = jobhome(JobName),
-    Worker = filename:join(JobHome, binary_to_list(W)),
-    Command = "nice -n 19 " ++ Worker,
+    Worker = filename:join(JobHome, binary_to_list(W)), %% 获取工作脚本
+    Command = "nice -n 19 " ++ Worker, %% 设定工作脚本命令
     JobEnvs = [{S, false} || S <- disco:settings()] ++ JE,
     Options = [{cd, JobHome},
                stream,
@@ -140,8 +140,8 @@ handle_cast(work, #state{task = T, port = none} = State) ->
                use_stdio,
                stderr_to_stdout,
                {env, JobEnvs}],
-    Port = open_port({spawn, Command}, Options),
-    SendPid = spawn_link(fun() -> worker_send(T, Port) end),
+    Port = open_port({spawn, Command}, Options), %% 开启port
+    SendPid = spawn_link(fun() -> worker_send(T, Port) end), %% 创建给工作脚本发送命令的进程
     {noreply, State#state{port = Port, worker_send = SendPid}, ?PID_TIMEOUT}.
 
 
@@ -151,7 +151,7 @@ handle_cast(work, #state{task = T, port = none} = State) ->
 -spec handle_info(port_msg(), state()) -> gs_noreply() | gs_stop(shutdown()).
 handle_info({_Port, {data, Data}},
             #state{error_output = true, buffer = Buffer} = State)
-            when size(Buffer) < ?MAX_ERROR_BUFFER_SIZE ->
+            when size(Buffer) < ?MAX_ERROR_BUFFER_SIZE ->  %%接收Port进程的消息
     Buffer1 = <<Buffer/binary, Data/binary>>,
     {noreply, State#state{buffer = Buffer1}, ?ERROR_TIMEOUT};
 
@@ -160,7 +160,7 @@ handle_info({_Port, {data, _Data}}, #state{error_output = true} = State) ->
 
 handle_info({_Port, {data, Data}}, #state{buffer = Buffer} = S) ->
     update(S#state{buffer = <<Buffer/binary, Data/binary>>});
-
+%% 每30秒要进行一次汇报，如果不汇报就杀掉进程
 handle_info(timeout, #state{error_output = false, runtime = Runtime} = S) ->
     case worker_runtime:get_pid(Runtime) of
         none -> warning("Worker did not send its PID in 30 seconds", S);

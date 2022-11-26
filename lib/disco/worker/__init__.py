@@ -339,10 +339,10 @@ class Worker(dict):
             sys.stdin = NonBlockingInput(sys.stdin,
                                          timeout=3 * DISCO_WORKER_MAX_TIME)
             sys.stdout = sys.stderr = MessageWriter(cls)
-            cls.send('WORKER', {'pid': os.getpid(), 'version': "1.1"})
-            task = cls.get_task()
+            cls.send('WORKER', {'pid': os.getpid(), 'version': "1.1"}) #向远程报告自己的进程ID
+            task = cls.get_task() #获取相对应的任务
             job, jobargs = task.jobobjs
-            job.worker.start(task, job, **jobargs)
+            job.worker.start(task, job, **jobargs) #启动任务
             cls.send('DONE')
         except (DataError, EnvironmentError, MemoryError) as e:
             # check the number of open file descriptors (under proc), warn if close to max
