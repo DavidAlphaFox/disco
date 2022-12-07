@@ -19,12 +19,12 @@ init() ->
 
 -spec handle(state()) -> throttle().
 handle(Q) ->
-    Now = disco_util:timestamp(),
+  Now = disco_util:timestamp(), %当前时间
     Q1 = queue:in(Now, Q),
     Diff = timer:now_diff(Now, queue:get(Q1)),
-    if Diff > ?MICROSECONDS_IN_SECOND ->
+    if Diff > ?MICROSECONDS_IN_SECOND -> %当前时间和最久远的时间相差超过了1秒钟
         Q2 = queue:drop(Q1),
-        throttle(Q2, queue:len(Q2));
+        throttle(Q2, queue:len(Q2)); %% 删除最久的时间，进行限流
     true ->
         throttle(Q1, queue:len(Q1))
     end.
@@ -34,6 +34,7 @@ handle(Q) ->
 -else.
 -spec throttle(queue(), non_neg_integer()) -> throttle().
 -endif.
+%% 1秒钟超过了10件事件
 throttle(_Q, N) when N >= ?MAX_EVENTS_PER_SECOND * 2 ->
     {error, ["Worker is behaving badly: Sent ",
              integer_to_list(N), " events in a second, ignoring replies."]};

@@ -357,8 +357,8 @@ class Worker(dict):
     @classmethod
     def send(cls, type, payload=''):
         from json import dumps, loads
-        body = dumps(payload)
-        cls.stderr.write('{0} {1} {2}\n'.format(type, len(body), body))
+        body = dumps(payload) #编码成JSON
+        cls.stderr.write('{0} {1} {2}\n'.format(type, len(body), body)) # 通过stderr发送出去
         cls.stderr.flush()
         spent, rtype = sys.stdin.t_read_until(' ')
         spent, rsize = sys.stdin.t_read_until(' ', spent=spent)

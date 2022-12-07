@@ -36,9 +36,9 @@ parse(Buffer, {parse_length, Type} = State) ->
     TypeLen = byte_size(Type) + 1,
     <<_:TypeLen/binary, Rest/binary>> = Buffer,
     case head(Rest) of
-        {ok, LengthStr} ->
+        {ok, LengthStr} -> %% 获得长度
             try
-                case list_to_integer(binary_to_list(LengthStr)) of
+                case list_to_integer(binary_to_list(LengthStr)) of %% 转成整形
                     Len when Len < 0 ->
                         {error, invalid_length};
                     Len when Len > ?MAX_MESSAGE_LENGTH ->
@@ -54,7 +54,7 @@ parse(Buffer, {parse_length, Type} = State) ->
         more_data ->
             {cont, Buffer, State}
     end;
-parse(Buffer, {parse_body, _Type, _LengthStr, Total} = State)
+parse(Buffer, {parse_body, _Type, _LengthStr, Total} = State) %%获取数据实体
         when byte_size(Buffer) < Total ->
     {cont, Buffer, State};
 parse(Buffer, {parse_body, Type, LengthStr, Total}) ->
@@ -62,11 +62,11 @@ parse(Buffer, {parse_body, Type, LengthStr, Total}) ->
     BodyLen = Total - HeadLen - 1,
     case Buffer of
         <<_:HeadLen/binary, Body:BodyLen/binary, $\n, Rest/binary>> ->
-            {ok, {Type, Body}, Rest, new_message};
+            {ok, {Type, Body}, Rest, new_message}; %% 消息体
         _ ->
             {error, invalid_body}
     end.
-
+%%用空格进行拆分
 -spec head(binary()) -> {ok, binary()} | head_missing | more_data.
 head(<<Head:1/binary, 32, _/binary>>) -> {ok, Head};
 head(<<Head:2/binary, 32, _/binary>>) -> {ok, Head};

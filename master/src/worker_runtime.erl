@@ -102,7 +102,7 @@ handle({Type, Body}, S) ->
     end.
 
 -spec do_handle({binary(), term()}, state()) -> do_handle().
-
+%% 更新进程ID数据
 do_handle({<<"WORKER">>, {struct, Worker}}, S) ->
     {_, Pid} = lists:keyfind(<<"pid">>, 1, Worker),
     S1 = S#state{child_pid = Pid},
@@ -115,7 +115,7 @@ do_handle({<<"WORKER">>, {struct, Worker}}, S) ->
         _ ->
             {error, {fatal, ["No worker version received"]}, S1}
     end;
-
+%% 获取任务
 do_handle({<<"TASK">>, _Body}, #state{host = Host, task = {TS, _TR}} = S) ->
     #task_spec{jobname = JN, taskid = TaskId, stage = Stage,
                group = G, grouping = Gg} = TS,

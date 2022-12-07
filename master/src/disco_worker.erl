@@ -38,12 +38,12 @@
 -define(ERROR_TIMEOUT, 10 * 1000).
 -define(MESSAGE_TIMEOUT, 30 * 1000).
 -define(MAX_ERROR_BUFFER_SIZE, 100 * 1024).
-
+%% 启动远程节点
 -spec start_link_remote(host(), pid(), task()) -> no_return().
 start_link_remote(Host, NodeMon, Task) ->
     Node = disco:slave_node(Host),
     wait_until_node_ready(NodeMon, Host),
-    process_flag(trap_exit, true),
+    process_flag(trap_exit, true), %% 跟踪退出信号
     {Master, Self} = {node(), self()},
     spawn_link(Node, disco_worker, start_link, [Self, Master, Task]),
     receive
@@ -79,7 +79,7 @@ init({Master, {#task_spec{job_coord = JobCoord}, #task_run{}} = Task}) ->
     % Note! This worker is killed implicitly by killing its
     % job_coordinator, which should be noticed by the monitor
     % below.
-    erlang:monitor(process, JobCoord),
+    erlang:monitor(process, JobCoord), %%监控它自身的作业进程
     % introduce myself to the job_coordinator as the worker
     {#task_spec{taskid = TaskId}, _} = Task,
     job_coordinator:task_started(JobCoord, TaskId, self()),
@@ -136,9 +136,9 @@ handle_cast(work, #state{task = T, port = none} = State) ->
     Options = [{cd, JobHome},
                stream,
                binary,
-               exit_status,
-               use_stdio,
-               stderr_to_stdout,
+               exit_status,%% 外部程序会发送一个退出信号
+               use_stdio, %% 使用标准的输入输出进行数据交换
+               stderr_to_stdout,%% 将stderr重定向stdout
                {env, JobEnvs}],
     Port = open_port({spawn, Command}, Options), %% 开启port
     SendPid = spawn_link(fun() -> worker_send(T, Port) end), %% 创建给工作脚本发送命令的进程
@@ -227,7 +227,7 @@ update(#state{task = Task,
               runtime = RT,
               worker_send = WS,
               throttle = T} = S) ->
-    case worker_protocol:parse(B, P) of
+    case worker_protocol:parse(B, P) of %% 更新任务数据
         {ok, Request, Buffer, PState} ->
             proto_log(Task, from, "~p", [Request]),
             S1 = S#state{buffer = Buffer, parser = PState},
